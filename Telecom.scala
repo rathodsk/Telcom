@@ -1,71 +1,63 @@
-import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.streaming.Trigger
+import org.apache.spark.sql.{SparkSession, DataFrame}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 
 object Telecom {
-  //We can move these constants to a constant file.
-  // Kept them in this class purposefully to test this class in notepad
-  val INTERVAL_TIME = "5 seconds"
-  val REGION_US_EAST_1 = "us-east-1"
-  val DYNAMODB_SINK_FORMAT = "software.amazon.kinesis.coordinator.dynamodb.DynamoDBSinkProvider"
-  val TELECOM_TABLE = "telecom"
+
+  // Define the schema
+  val callLogSchema = StructType(Seq(
+    StructField("date", DateType),
+    StructField("hour", TimestampType),
+    StructField("signal", IntegerType),
+    StructField("status", IntegerType),
+    StructField("description", StringType),
+    StructField("net", StringType),
+    StructField("speed", IntegerType),
+    StructField("activity", StringType),
+    StructField("postal_code", IntegerType),
+    StructField("satellites", IntegerType),
+    StructField("precission", IntegerType)
+  ))
 
   def main(args: Array[String]): Unit = {
+
     val spark = SparkSession.builder
-      .appName("telecom")
+      .appName("KafkaConsumerWithSchema")
+      .master("local[*]")
       .getOrCreate()
 
-    // Call_Log file Kafka message structure
-    val callLogSchema = StructType(Seq(
-      StructField("date", DateType),
-      StructField("hour", IntegerType),
-      StructField("signal", StringType),
-      StructField("status", StringType),
-      StructField("description", StringType),
-      StructField("net", StringType),
-      StructField("speed", IntegerType),
-      StructField("activity", StringType),
-      StructField("postal_code", StringType),
-      StructField("satellites", StringType),
-      StructField("precission", StringType)
-    ))
+    import spark.implicits._
 
-    // Configure Kafka parameters
-    val kafkaParams = Map(
-      "kafka.bootstrap.servers" -> "localhost:9092",
-      "subscribe" -> "telecomtopic",
-      "group.id" -> "telecom_consumer_group"
-    )
+    //  Kafka connection parameters
+    val kafkaBootstrapServers = "localhost:9092"
+    val kafkaTopic = "telecomtopic"
 
-    // Create a DataFrame representing the Kafka stream
-    val kafkaStreamDF = spark
-      .readStream
+    // Read data from Kafka into a DataFrame
+    val kafkaStreamDF = spark.readStream
       .format("kafka")
-      .option("kafka.bootstrap.servers", kafkaParams("kafka.bootstrap.servers"))
-      .option("subscribe", kafkaParams("subscribe"))
+      .option("kafka.bootstrap.servers", kafkaBootstrapServers)
+      .option("subscribe", kafkaTopic)
       .load()
 
-    // Deserialize the Kafka message value to a structured DataFrame using the defined schema
-    val jsonDataDF = kafkaStreamDF
-      .selectExpr("CAST(value AS STRING) as value")
-      .select(from_json(col("value"), callLogSchema).as("data"))
+    // Convert the binary value to string
+    val kafkaValueDF = kafkaStreamDF.selectExpr("CAST(value AS STRING)")
+
+    // Parse JSON strings into DataFrame using the defined schema
+    val parsedDF = kafkaValueDF.select(from_json($"value", callLogSchema).as("data"))
       .select("data.*")
 
-//    jsonDataDF.show()
+    // Calculating avg speed for real time downtime detection
+    val resultDF = parsedDF.groupBy("date").agg(avg("speed").as("avg_speed"))
 
-    // Write the data to DynamoDB
-    jsonDataDF
-      .writeStream
-      .foreachBatch { (batchDF, batchId) =>
-        batchDF.write
-          .format(DYNAMODB_SINK_FORMAT)
-          .option("region", REGION_US_EAST_1)
-          .option("tableName", TELECOM_TABLE)
-          .save()
-      }
-      .trigger(Trigger.ProcessingTime(INTERVAL_TIME))
+    // Print the result to console
+    //In real project, we can store this result in any NoSQL database like DynamoDB
+    val query = resultDF.writeStream
+      .outputMode("complete")
+      .format("console")
       .start()
-      .awaitTermination()
+
+    query.awaitTermination()
+
+    spark.stop()
   }
 }
