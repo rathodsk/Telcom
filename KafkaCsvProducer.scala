@@ -14,7 +14,7 @@ object KafkaCsvProducer {
 
     val producer: KafkaProducer[String, String] = new KafkaProducer[String, String](config)
 
-    val fileName = ""
+    val fileName = "telecom_data.csv"
     val topicName = "telecomtopic"
 
     for (line <- Source.fromFile(fileName).getLines().drop(1)) { // Dropping the column names
