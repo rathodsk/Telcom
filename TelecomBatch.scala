@@ -8,7 +8,7 @@ object TelecomBatch {
     val SOURCE_FILE_PATH = "C:\\data\\telecom_data"
     val RESULT_PATH = "D:\\results"
 
-    val SQL_QUERY =  "SELECT col1, COUNT(col2) as count_col2, AVG(col3) as avg_col3 FROM myTable GROUP BY col1"
+   // val SQL_QUERY =  "SELECT col1, COUNT(col2) as count_col2, AVG(col3) as avg_col3 FROM myTable GROUP BY col1"
 
     // Create a Spark session
     val spark = SparkSession.builder
