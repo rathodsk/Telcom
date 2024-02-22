@@ -22,7 +22,10 @@ object KafkaCsvProducer {
       val key = line.split(",") {
         0
       }
-
+// Key is very imporatant for the distribution of the values
+      
+      
+// Kafka Accepts the record as Key Value Pair so sending line as value and hard codes Key set 
       // Prepare the record to send
       val record: ProducerRecord[String, String] = new ProducerRecord[String, String](topicName, key, line)
 
