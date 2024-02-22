@@ -22,7 +22,7 @@ object Telecom {
   def main(args: Array[String]): Unit = {
 
     val spark = SparkSession.builder
-      .appName("KafkaConsumerWithSchema")
+      .appName("Telecom")
       .master("local[*]")
       .getOrCreate()
 
